@@ -88,19 +88,63 @@ Tensor product group factories
 .. autoclass:: LegendreGaussLobattoTensorProductGroupFactory
 """
 
+# {{{
+
+def class_memoize_method(method, cache_dict_name=None):
+    if cache_dict_name is None:
+        from sys import intern
+        module = method.__module__.replace(".", "_")
+        cache_dict_name = intern(
+                f"_class_memoize_dict_{module}_{method.__name__}"
+                )
+
+    def wrapper(obj, *args):
+        if not isinstance(obj, NodalElementGroupBase) \
+                and not isinstance(obj, ModalElementGroupBase):
+            raise TypeError("can only memoize element groups")
+
+        key = args + obj.discretization_key()
+        cls = type(obj)
+
+        try:
+            return getattr(cls, cache_dict_name)[key]
+        except AttributeError:
+            attribute_error = True
+        except KeyError:
+            attribute_error = False
+
+        result = method(obj, *args)
+        if attribute_error:
+            # NOTE: ABCMeta does not appreciate using object.__setattr__
+            setattr(cls, cache_dict_name, {key: result})
+        else:
+            getattr(cls, cache_dict_name)[key] = result
+
+        return result
+
+    def clear_cache(obj):
+        object.__delattr__(type(obj), cache_dict_name)
+
+    from functools import update_wrapper
+    new_wrapper = update_wrapper(wrapper, method)
+    new_wrapper.clear_cache = clear_cache
+
+    return new_wrapper
+
+# }}}
+
 
 # {{{ base class for interpolatory polynomial elements
 
 class PolynomialElementGroupBase(InterpolatoryElementGroupBase):
-    @memoize_method
+    @class_memoize_method
     def mass_matrix(self):
         assert self.is_orthogonal_basis()
-
         return mp.mass_matrix(
                 self.basis(),
                 self.unit_nodes)
 
-    @memoize_method
+    @class_memoize_method
     def diff_matrices(self):
         if len(self.basis()) != self.unit_nodes.shape[1]:
             raise NoninterpolatoryElementGroupError(
@@ -114,10 +158,7 @@ class PolynomialElementGroupBase(InterpolatoryElementGroupBase):
                 self.grad_basis(),
                 self.unit_nodes)
 
-        if not isinstance(result, tuple):
-            return (result,)
-        else:
-            return result
+        return result if isinstance(result, tuple) else (result,)
 
 # }}}
 
@@ -181,8 +222,8 @@ class SimplexElementGroupBase(NodalElementGroupBase):
                 meg.unit_nodes)
 
 
-class PolynomialSimplexElementGroupBase(PolynomialElementGroupBase,
-        SimplexElementGroupBase):
+class PolynomialSimplexElementGroupBase(
+        PolynomialElementGroupBase, SimplexElementGroupBase):
     def is_orthogonal_basis(self):
         return self.dim <= 3
 
@@ -212,8 +253,7 @@ class InterpolatoryQuadratureSimplexElementGroup(PolynomialSimplexElementGroupBa
     are a tuple (one entry per dimension) of directional polynomial degrees
     on the reference element.
     """
-
-    @memoize_method
+    @class_memoize_method
     def _quadrature_rule(self):
         dims = self.mesh_el_group.dim
         if dims == 0:
@@ -224,7 +264,6 @@ class InterpolatoryQuadratureSimplexElementGroup(PolynomialSimplexElementGroupBa
             return mp.VioreanuRokhlinSimplexQuadrature(self.order, dims)
 
     @property
-    @memoize_method
     def unit_nodes(self):
         result = self._quadrature_rule().nodes
         if len(result.shape) == 1:
@@ -235,7 +274,6 @@ class InterpolatoryQuadratureSimplexElementGroup(PolynomialSimplexElementGroupBa
         return result
 
     @property
-    @memoize_method
     def weights(self):
         return self._quadrature_rule().weights
 
@@ -252,8 +290,7 @@ class QuadratureSimplexElementGroup(SimplexElementGroupBase):
     are a tuple (one entry per dimension) of directional polynomial degrees
     on the reference element.
     """
-
-    @memoize_method
+    @class_memoize_method
     def _quadrature_rule(self):
         dims = self.mesh_el_group.dim
         if dims == 0:
@@ -264,7 +301,6 @@ class QuadratureSimplexElementGroup(SimplexElementGroupBase):
             return mp.XiaoGimbutasSimplexQuadrature(self.order, dims)
 
     @property
-    @memoize_method
     def unit_nodes(self):
         result = self._quadrature_rule().nodes
         if len(result.shape) == 1:
@@ -272,22 +308,18 @@ class QuadratureSimplexElementGroup(SimplexElementGroupBase):
 
         dim2, _ = result.shape
         assert dim2 == self.mesh_el_group.dim
-
         return result
 
     @property
-    @memoize_method
     def weights(self):
         return self._quadrature_rule().weights
 
 
 class _MassMatrixQuadratureElementGroup(PolynomialSimplexElementGroupBase):
     @property
-    @memoize_method
+    @class_memoize_method
     def weights(self):
-        return np.dot(
-                self.mass_matrix(),
-                np.ones(len(self.basis())))
+        return np.dot(self.mass_matrix(), np.ones(len(self.basis())))
 
 
 class PolynomialWarpAndBlendElementGroup(_MassMatrixQuadratureElementGroup):
@@ -303,7 +335,7 @@ class PolynomialWarpAndBlendElementGroup(_MassMatrixQuadratureElementGroup):
     on the reference element.
     """
     @property
-    @memoize_method
+    @class_memoize_method
     def unit_nodes(self):
         dim = self.mesh_el_group.dim
         if self.order == 0:
@@ -314,6 +346,7 @@ class PolynomialWarpAndBlendElementGroup(_MassMatrixQuadratureElementGroup):
 
         dim2, _ = result.shape
         assert dim2 == dim
+
         return result
 
 
@@ -344,7 +377,7 @@ class PolynomialRecursiveNodesElementGroup(_MassMatrixQuadratureElementGroup):
         self.family = family
 
     @property
-    @memoize_method
+    @class_memoize_method
     def unit_nodes(self):
         dim = self.mesh_el_group.dim
 
@@ -354,10 +387,11 @@ class PolynomialRecursiveNodesElementGroup(_MassMatrixQuadratureElementGroup):
 
         dim2, _ = result.shape
         assert dim2 == dim
+
         return result
 
     def discretization_key(self):
-        return (type(self), self.order, self.family)
+        return (type(self), self.dim, self.order, self.family)
 
 
 class PolynomialEquidistantSimplexElementGroup(_MassMatrixQuadratureElementGroup):
@@ -373,13 +407,14 @@ class PolynomialEquidistantSimplexElementGroup(_MassMatrixQuadratureElementGroup
     .. versionadded:: 2016.1
     """
     @property
-    @memoize_method
+    @class_memoize_method
     def unit_nodes(self):
         dim = self.mesh_el_group.dim
         result = mp.equidistant_nodes(dim, self.order)
 
         dim2, _ = result.shape
         assert dim2 == dim
+
         return result
 
 
@@ -389,8 +424,7 @@ class PolynomialGivenNodesElementGroup(_MassMatrixQuadratureElementGroup):
     interpolation. Uses nodes given by the user.
     """
     def __init__(self, mesh_el_group, order, unit_nodes, index):
-        super().__init__(mesh_el_group, order, index)
-        self._unit_nodes = unit_nodes
+        super().__init__(mesh_el_group, order, index, _unit_nodes=unit_nodes)
 
     @property
     def unit_nodes(self):
@@ -548,7 +582,7 @@ class GaussLegendreTensorProductElementGroup(LegendreTensorProductElementGroup):
         return self._quadrature_rule.weights
 
     def discretization_key(self):
-        return (type(self), self.order)
+        return (type(self), self.dim, self.order)
 
 
 class LegendreGaussLobattoTensorProductElementGroup(
@@ -571,7 +605,7 @@ class LegendreGaussLobattoTensorProductElementGroup(
                 )
 
     def discretization_key(self):
-        return (type(self), self.order)
+        return (type(self), self.dim, self.order)
 
 
 class EquidistantTensorProductElementGroup(LegendreTensorProductElementGroup):
@@ -593,7 +627,7 @@ class EquidistantTensorProductElementGroup(LegendreTensorProductElementGroup):
                 )
 
     def discretization_key(self):
-        return (type(self), self.order)
+        return (type(self), self.dim, self.order)
 
 # }}}
 

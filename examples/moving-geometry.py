@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
+# {{{ helpers
+
 def plot_solution(actx, vis, filename, discr, t, x):
     names_and_fields = []
 
@@ -90,9 +92,8 @@ def reconstruct_discr_from_nodes(actx, discr, x):
         return actx.call_loopy(
                 resample_by_mat_prg(),
                 nodes=discr_nodes,
-                result=grp.mesh_el_group.nodes[iaxis],
                 resampling_mat=to_mesh_interp_matrix(igrp),
-                )
+                )["result"]
 
     megs = []
     for igrp, grp in enumerate(discr.groups):
@@ -117,18 +118,32 @@ def advance(actx, dt, t, x, fn):
     k2 = 3.0 / 4.0 * x + 1.0 / 4.0 * (k1 + dt * fn(t + dt, k1))
     return 1.0 / 3.0 * x + 2.0 / 3.0 * (k2 + dt * fn(t + 0.5 * dt, k2))
 
+# }}}
+
+
+# {{{ run
+
+def _compute_derivative(actx, discr, f):
+    return sum(discr.num_reference_derivative((i,), f) for i in range(discr.dim))
+
+
+def _compute_quadrature(actx, discr, f):
+    fw = f * discr.quad_weights()
+    return sum(actx.np.sum(fwi) for fwi in fw)
+
 
 def run(actx, *,
         ambient_dim: int = 3,
         resolution: int = None,
-        target_order: int = 4,
+        target_order: int = 8,
         tmax: float = 1.0,
         timestep: float = 1.0e-2,
         group_factory_name: str = "warp_and_blend",
-        visualize: bool = True):
+        visualize: bool = False):
     if ambient_dim not in (2, 3):
         raise ValueError(f"unsupported dimension: {ambient_dim}")
 
+    # mesh_order = target_order + 1
     mesh_order = target_order
     radius = 1.0
 
@@ -170,7 +185,7 @@ def run(actx, *,
                 order=mesh_order,
                 unit_nodes=unit_nodes)
     else:
-        nrounds = 3 if resolution is None else resolution
+        nrounds = 4 if resolution is None else resolution
         mesh = gen.generate_icosphere(radius,
                 uniform_refinement_rounds=nrounds,
                 order=mesh_order,
@@ -181,6 +196,11 @@ def run(actx, *,
 
     logger.info("ndofs:     %d", discr0.ndofs)
     logger.info("nelements: %d", discr0.mesh.nelements)
+
+    # NOTE: compute once to warm up all the caches
+    f = thaw(actx, discr0.nodes()[0])
+    _compute_derivative(actx, discr0, f)
+    _compute_quadrature(actx, discr0, f)
 
     # }}}
 
@@ -204,6 +224,11 @@ def run(actx, *,
     def source(t, x):
         discr = reconstruct_discr_from_nodes(actx, discr0, x)
         u = velocity_field(thaw(actx, discr.nodes()))
+
+        f = thaw(actx, discr.nodes()[0])
+        _compute_derivative(actx, discr, f)
+        _compute_quadrature(actx, discr, f)
+
         return u
 
     # }}}
@@ -236,6 +261,8 @@ def run(actx, *,
                 n, maxiter, t, tmax, dt)
 
     # }}}
+
+# }}}
 
 
 if __name__ == "__main__":
