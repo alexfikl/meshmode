@@ -321,7 +321,7 @@ def _freeze_dofarray(ary, actx=None):
                     "in the DOFArray in freeze(DOFArray)")
     return type(ary)(
         None,
-        tuple(_freeze(subary, ary.array_context) for subary in ary._data))
+        tuple(ary.array_context.freeze(subary) for subary in ary._data))
 
 
 @thaw_impl.register(DOFArray)
@@ -331,7 +331,7 @@ def _thaw_dofarray(ary, actx):
 
     return type(ary)(
         actx,
-        tuple(thaw_impl(subary, actx) for subary in ary._data))
+        tuple(actx.thaw(subary) for subary in ary._data))
 
 
 def map_dof_array_container(f: Callable[[Any], Any], ary):
