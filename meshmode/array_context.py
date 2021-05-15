@@ -676,8 +676,7 @@ def thaw(actx, ary):
                 f"cannot thaw arrays of type {type(ary).__name__}; "
                 "try calling 'ArrayContext.thaw' directly")
 
-    return _map_array_container(
-            actx.thaw, ary, actx=actx, recursive=True)
+    return _map_array_container(actx.thaw, ary, recursive=True)
 
 # }}}
 
