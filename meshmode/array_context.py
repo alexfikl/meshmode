@@ -671,12 +671,6 @@ def thaw(actx, ary):
     :param ary: a :meth:`~ArrayContext.freeze`\ ed :class:`ArrayContainer`.
     """
     return _thaw_inner(ary, actx)
-    if not is_array_container(ary):
-        raise TypeError(
-                f"cannot thaw arrays of type {type(ary).__name__}; "
-                "try calling 'ArrayContext.thaw' directly")
-
-    return _map_array_container(actx.thaw, ary, recursive=True)
 
 # }}}
 
