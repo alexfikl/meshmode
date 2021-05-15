@@ -500,7 +500,7 @@ def _map_array_container(f, ary, *,
 def _multimap_array_container_only_unchecked(f, *args,
         leaf_cls=None,
         recursive=False):
-    r"""Version of :func:`_multimap_array_container_with_context` that assumes
+    r"""Version of :func:`_multimap_array_container` that assumes
     all *args* are :class:`ArrayContainer`\ s of the same type.
 
     No checks are performed.
@@ -519,7 +519,7 @@ def _multimap_array_container_only_unchecked(f, *args,
         ))
 
 
-def _multimap_array_container_with_context(f, *args,
+def _multimap_array_container(f, *args,
         leaf_cls=None,
         recursive=False):
     """Helper for :func:`multimap_array_container`.
@@ -551,7 +551,7 @@ def _multimap_array_container_with_context(f, *args,
                 leaf_cls=leaf_cls, recursive=recursive)
 
     if recursive:
-        f = partial(_multimap_array_container_with_context,
+        f = partial(_multimap_array_container,
                 f, leaf_cls=leaf_cls, recursive=True)
 
     result = []
@@ -592,7 +592,7 @@ def array_container_vectorize_n_args(f: Callable[[Any], Any], *args):
     :param args: all :class:`ArrayContainer` arguments must be of the same
         type and with the same structure (same number of components, etc.).
     """
-    return _multimap_array_container_with_context(f, *args, recursive=False)
+    return _multimap_array_container(f, *args, recursive=False)
 
 
 def map_array_container(f: Callable[[Any], Any], ary):
@@ -621,7 +621,7 @@ def multimap_array_container(f: Callable[[Any], Any], *args):
     :param args: all :class:`ArrayContainer` arguments must be of the same
         type and with the same structure (same number of components, etc.).
     """
-    return _multimap_array_container_with_context(f, *args, recursive=True)
+    return _multimap_array_container(f, *args, recursive=True)
 
 
 def multimapped_over_array_containers(f: Callable[[Any], Any]):
