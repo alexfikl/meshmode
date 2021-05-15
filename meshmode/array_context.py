@@ -55,6 +55,7 @@ __doc__ = """
 .. autofunction:: map_array_container
 .. autofunction:: multimap_array_container
 .. autofunction:: freeze
+.. autofunction:: thaw_impl
 .. autofunction:: thaw
 
 .. autoclass:: ArrayContext
@@ -639,6 +640,11 @@ def freeze(ary, actx=None):
     :class:`ArrayContainer` *ary*.
 
     :param ary: a :meth:`~ArrayContext.thaw`\ ed :class:`ArrayContainer`.
+
+    Array container types may use :func:`functools.singledispatch` ``.register`` to
+    register additional implementations.
+
+    See :meth:`ArrayContext.thaw`.
     """
     if is_array_container(ary):
         return _map_array_container(
@@ -655,10 +661,19 @@ def freeze(ary, actx=None):
 
 
 @singledispatch
-def _thaw_inner(ary, actx):
+def thaw_impl(ary, actx):
+    """Serves as the registration point (using :func:`functools.singledispatch`
+    ``.register`` to register additional implementations for :func:`thaw`.
+
+    .. note::
+
+        This is separate from :func:`thaw` because of argument order. Use of
+        :func:`functools.singledispatch` requires the 'dispatching' argument
+        to come first.
+    """
     if is_array_container(ary):
         return deserialize_container(ary,
-                ((key, _thaw_inner(subary, actx))
+                ((key, thaw_impl(subary, actx))
                     for key, subary in serialize_container(ary)))
     else:
         return actx.thaw(ary)
@@ -669,8 +684,13 @@ def thaw(actx, ary):
     :class:`ArrayContainer` *ary*.
 
     :param ary: a :meth:`~ArrayContext.freeze`\ ed :class:`ArrayContainer`.
+
+    Array container types may use :func:`functools.singledispatch` ``.register``
+    (with :func:`thaw_impl`) to register additional implementations.
+
+    See :meth:`ArrayContext.thaw`.
     """
-    return _thaw_inner(ary, actx)
+    return thaw_impl(ary, actx)
 
 # }}}
 

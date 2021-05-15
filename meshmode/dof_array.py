@@ -37,7 +37,7 @@ from meshmode.array_context import (
         ArrayContainer, ArrayContainerWithArithmetic,
         serialize_container, deserialize_container)
 from meshmode.array_context import (
-        thaw as _thaw, _thaw_inner, freeze as _freeze,
+        thaw as _thaw, thaw_impl, freeze as _freeze,
         map_array_container, multimap_array_container,
         mapped_over_array_containers, multimapped_over_array_containers)
 
@@ -324,14 +324,14 @@ def _freeze_dofarray(ary, actx=None):
         tuple(_freeze(subary, ary.array_context) for subary in ary._data))
 
 
-@_thaw_inner.register(DOFArray)
+@thaw_impl.register(DOFArray)
 def _thaw_dofarray(ary, actx):
     if ary.array_context is not None:
         raise ValueError("cannot thaw DOFArray that already has an array context")
 
     return type(ary)(
         actx,
-        tuple(_thaw_inner(subary, actx) for subary in ary._data))
+        tuple(thaw_impl(subary, actx) for subary in ary._data))
 
 
 def map_dof_array_container(f: Callable[[Any], Any], ary):
