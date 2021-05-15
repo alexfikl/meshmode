@@ -298,14 +298,14 @@ def _serialize_container_dofarray(ary: DOFArray):
     return enumerate(ary._data)
 
 
-def _raise_index_inconsistency(i, stream_i):
-    raise ValueError("out-of-sequence indices supplied in DOFArray deserialization "
-            f"(expected {i}, received {stream_i})")
-
-
 @deserialize_container.register(DOFArray)
 def _deserialize_container_dofarray(
         template: Any, iterable: Iterable[Tuple[Any, Any]]):
+    def _raise_index_inconsistency(i, stream_i):
+        raise ValueError(
+                "out-of-sequence indices supplied in DOFArray deserialization "
+                f"(expected {i}, received {stream_i})")
+
     return type(template)(
             template.array_context,
             data=tuple(
