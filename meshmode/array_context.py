@@ -24,7 +24,7 @@ import operator
 from dataclasses import fields
 from functools import partial, singledispatch, update_wrapper
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Iterable, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -43,7 +43,6 @@ __doc__ = """
 .. autoclass:: ArrayContainer
 .. autofunction:: is_array_container
 .. autofunction:: serialize_container
-.. autofunction:: deserialize_container_class
 .. autofunction:: deserialize_container
 .. autofunction:: get_container_context
 .. autofunction:: get_container_context_recursively
@@ -105,10 +104,6 @@ def _loopy_get_default_entrypoint(t_unit):
 
 # {{{ ArrayContainer
 
-class _ArrayContextNotProvided:
-    pass
-
-
 class ArrayContainer:
     r"""A generic container for the array type supported by the
     :class:`ArrayContext`.
@@ -122,8 +117,7 @@ class ArrayContainer:
     * Serialization functionality is implemented in :func:`serialize_container`
       and :func:`deserialize_container`. This allows enumeration of the
       component arrays in a container and the construction of modified
-      containers from an iterable of those component arrays. Deserialization
-      may be registered using :func:`deserialize_container_class`.
+      containers from an iterable of those component arrays.
     * :func:`get_container_context` retrieves the :class:`ArrayContext` from
       a container, if it has one.
 
@@ -140,7 +134,7 @@ def is_array_container(ary: object):
 
 
 @is_array_container.register(ArrayContainer)
-def _(ary: ArrayContainer):
+def _is_array_container_ac(ary: ArrayContainer):
     return True
 
 
@@ -166,18 +160,8 @@ def serialize_container(ary: ArrayContainer) -> Iterable[Tuple[Any, Any]]:
 
 
 @singledispatch
-def deserialize_container_class(cls: type, template: Any,
-        iterable: Iterable[Tuple[Any, Any]], *,
-        actx: Optional["ArrayContext"] = None):
-    """Serves as the :func:`functools.singledispatch` registration target for
-    container deserialization through :func:`deserialize_container`.
-    """
-    raise NotImplementedError(cls.__name__)
-
-
-def deserialize_container(cls: type, template: Any,
-        iterable: Iterable[Tuple[Any, Any]], *,
-        actx: Optional["ArrayContext"] = _ArrayContextNotProvided):
+def deserialize_container(template: Any,
+        iterable: Iterable[Tuple[Any, Any]]):
     """Deserialize an iterable into an array container.
 
     :param template: an instance of an existing object that
@@ -189,11 +173,7 @@ def deserialize_container(cls: type, template: Any,
         container, if it requires one at all. If not provided, attempt to get
         a context from the *template*.
     """
-    if actx is _ArrayContextNotProvided:
-        actx = get_container_context(template)
-
-    return deserialize_container_class.dispatch(cls)(
-            cls, template, iterable, actx=actx)
+    raise NotImplementedError(type(template).__name__)
 
 
 @singledispatch
@@ -212,23 +192,23 @@ def get_container_context(ary: ArrayContainer):
 # {{{ object arrays as array containers
 
 @is_array_container.register(np.ndarray)
-def _(ary: np.ndarray):
+def _is_array_container_ndarray(ary: np.ndarray):
     return ary.dtype.char == "O"
 
 
 @serialize_container.register(np.ndarray)
-def _(ary: np.ndarray):
+def _serialize_container_ndarray(ary: np.ndarray):
     assert ary.dtype.char == "O"
     return np.ndenumerate(ary)
 
 
-@deserialize_container_class.register(np.ndarray)
-def _(cls: type, template: Any, iterable: Iterable[Tuple[Any, Any]], *,
-        actx: Optional["ArrayContext"] = None):
+@deserialize_container.register(np.ndarray)
+def _deserialize_container_ndarray(
+        template: Any, iterable: Iterable[Tuple[Any, Any]]):
     # disallow subclasses
-    assert cls is np.ndarray
+    assert type(template) is np.ndarray
 
-    result = cls(template.shape, dtype=object)
+    result = type(template)(template.shape, dtype=object)
     for i, subary in iterable:
         result[i] = subary
 
@@ -434,7 +414,7 @@ class ArrayContainerWithArithmetic(ArrayContainer):
 
 
 @get_container_context.register(ArrayContainerWithArithmetic)
-def _(ary: ArrayContainerWithArithmetic):
+def _get_array_container_ac_arith(ary: ArrayContainerWithArithmetic):
     return ary.array_context
 
 # }}}
@@ -457,14 +437,13 @@ class DataclassArrayContainerWithArithmetic(
 
 
 @serialize_container.register(DataclassArrayContainer)
-def _(ary: DataclassArrayContainer):
+def _serialize_dataclass_ac(ary: DataclassArrayContainer):
     return ((var.name, getattr(ary, var.name)) for var in fields(ary))
 
 
-@deserialize_container_class.register(DataclassArrayContainer)
-def _(cls, template: Any, iterable: Iterable[Tuple[Any, Any]], *,
-        actx: Optional["ArrayContext"] = None):
-    return cls(**dict(iterable))
+@deserialize_container.register(DataclassArrayContainer)
+def _deserialize_dataclass_ac(template: Any, iterable: Iterable[Tuple[Any, Any]]):
+    return type(template)(**dict(iterable))
 
 # }}}
 
@@ -492,8 +471,7 @@ def _zip_containers(arys):
         yield key, value
 
 
-def _map_array_container_with_context(f, ary, *,
-        actx=_ArrayContextNotProvided,
+def _map_array_container(f, ary, *,
         leaf_cls=None,
         recursive=False):
     """Helper for :func:`map_array_container`.
@@ -508,23 +486,18 @@ def _map_array_container_with_context(f, ary, *,
     if type(ary) is leaf_cls:  # type(ary) is never None
         return f(ary)
     elif is_array_container(ary):
-        array_context = actx
-        if array_context is _ArrayContextNotProvided:
-            array_context = get_container_context(ary)
-
         if recursive:
-            f = partial(_map_array_container_with_context,
-                    f, actx=actx, leaf_cls=leaf_cls, recursive=True)
+            f = partial(_map_array_container,
+                    f, leaf_cls=leaf_cls, recursive=True)
 
-        return deserialize_container(type(ary), ary, (
+        return deserialize_container(ary, (
                 (key, f(subary)) for key, subary in serialize_container(ary)
-                ), actx=array_context)
+                ))
     else:
         return f(ary)
 
 
 def _multimap_array_container_only_unchecked(f, *args,
-        actx=_ArrayContextNotProvided,
         leaf_cls=None,
         recursive=False):
     r"""Version of :func:`_multimap_array_container_with_context` that assumes
@@ -537,21 +510,16 @@ def _multimap_array_container_only_unchecked(f, *args,
             or not is_array_container(template_ary)):
         return f(*args)
 
-    array_context = actx
-    if array_context is _ArrayContextNotProvided:
-        array_context = get_container_context(template_ary)
-
     if recursive:
         f = partial(_multimap_array_container_only_unchecked,
-                f, actx=actx, leaf_cls=leaf_cls, recursive=True)
+                f, leaf_cls=leaf_cls, recursive=True)
 
-    return deserialize_container(type(template_ary), template_ary, (
+    return deserialize_container(template_ary, (
         (key, f(*subarys)) for key, subarys in _zip_containers(args)
-        ), actx=array_context)
+        ))
 
 
 def _multimap_array_container_with_context(f, *args,
-        actx=_ArrayContextNotProvided,
         leaf_cls=None,
         recursive=False):
     """Helper for :func:`multimap_array_container`.
@@ -580,15 +548,11 @@ def _multimap_array_container_with_context(f, *args,
 
     if len(container_indices) == len(args):
         return _multimap_array_container_only_unchecked(f, *args,
-                actx=actx, leaf_cls=leaf_cls, recursive=recursive)
-
-    array_context = actx
-    if array_context is _ArrayContextNotProvided:
-        array_context = get_container_context(template_ary)
+                leaf_cls=leaf_cls, recursive=recursive)
 
     if recursive:
         f = partial(_multimap_array_container_with_context,
-                f, actx=actx, leaf_cls=leaf_cls, recursive=True)
+                f, leaf_cls=leaf_cls, recursive=True)
 
     result = []
     new_args = list(args)
@@ -599,9 +563,7 @@ def _multimap_array_container_with_context(f, *args,
 
         result.append((key, f(*new_args)))
 
-    return deserialize_container(
-            type(template_ary), template_ary, tuple(result),
-            actx=array_context)
+    return deserialize_container(template_ary, tuple(result))
 
 
 def array_container_vectorize(f: Callable[[Any], Any], ary):
@@ -615,7 +577,7 @@ def array_container_vectorize(f: Callable[[Any], Any], ary):
     :param ary: a (potentially nested) structure of :class:`ArrayContainer`\ s,
         or an instance of a base array type.
     """
-    return _map_array_container_with_context(f, ary, recursive=False)
+    return _map_array_container(f, ary, recursive=False)
 
 
 def array_container_vectorize_n_args(f: Callable[[Any], Any], *args):
@@ -641,7 +603,7 @@ def map_array_container(f: Callable[[Any], Any], ary):
     :param ary: a (potentially nested) structure of :class:`ArrayContainer`\ s,
         or an instance of a base array type.
     """
-    return _map_array_container_with_context(f, ary, recursive=True)
+    return _map_array_container(f, ary, recursive=True)
 
 
 def mapped_over_array_containers(f: Callable[[Any], Any]):
@@ -671,29 +633,35 @@ def multimapped_over_array_containers(f: Callable[[Any], Any]):
     return wrapper
 
 
-def freeze(ary):
+@singledispatch
+def freeze(ary, actx=None):
     r"""Freezes recursively by going through all components of the
     :class:`ArrayContainer` *ary*.
 
     :param ary: a :meth:`~ArrayContext.thaw`\ ed :class:`ArrayContainer`.
     """
-    def _freeze(subary, actx=None):
-        if is_array_container(subary):
-            if actx is None:
-                actx = get_container_context(subary)
-
-            return _map_array_container_with_context(
-                    partial(_freeze, actx=actx),
-                    subary, actx=None, recursive=False)
+    if is_array_container(ary):
+        return _map_array_container(
+                partial(freeze, actx=actx), ary,
+                recursive=False)
+    else:
+        if actx is None:
+            raise TypeError(
+                    f"cannot freeze arrays of type {type(ary).__name__} "
+                    "when actx is not supplied. Try calling actx.freeze "
+                    "directly or supplying an array context")
         else:
-            return actx.freeze(subary)
+            return actx.freeze(ary)
 
-    if not is_array_container(ary):
-        raise TypeError(
-                f"cannot freeze arrays of type {type(ary).__name__}; "
-                "try calling 'ArrayContext.freeze' directly")
 
-    return _freeze(ary)
+@singledispatch
+def _thaw_inner(ary, actx):
+    if is_array_container(ary):
+        return deserialize_container(ary,
+                ((key, _thaw_inner(subary, actx))
+                    for key, subary in serialize_container(ary)))
+    else:
+        return actx.thaw(ary)
 
 
 def thaw(actx, ary):
@@ -702,12 +670,13 @@ def thaw(actx, ary):
 
     :param ary: a :meth:`~ArrayContext.freeze`\ ed :class:`ArrayContainer`.
     """
+    return _thaw_inner(ary, actx)
     if not is_array_container(ary):
         raise TypeError(
                 f"cannot thaw arrays of type {type(ary).__name__}; "
                 "try calling 'ArrayContext.thaw' directly")
 
-    return _map_array_container_with_context(
+    return _map_array_container(
             actx.thaw, ary, actx=actx, recursive=True)
 
 # }}}
