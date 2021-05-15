@@ -358,8 +358,8 @@ def multimap_dof_array_container(f: Callable[[Any], Any], *args):
     Similar to :func:`~meshmode.array_context.multimap_array_container`, but
     does not further recurse on :class:`DOFArray`\ s.
     """
-    from meshmode.array_context import _multimap_array_container_with_context
-    return _multimap_array_container_with_context(
+    from meshmode.array_context import _multimap_array_container
+    return _multimap_array_container(
             f, *args, leaf_cls=DOFArray, recursive=True)
 
 
