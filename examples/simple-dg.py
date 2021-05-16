@@ -20,8 +20,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
-from dataclasses import dataclass
-
 import numpy as np
 import numpy.linalg as la  # noqa
 
@@ -38,7 +36,8 @@ from meshmode.array_context import (
         PyOpenCLArrayContext, make_loopy_program,
         ArrayContainer, NumpyObjectArray,
         map_array_container,
-        DataclassArrayContainerWithArithmetic,
+        ArrayContainerWithArithmetic,
+        dataclass_array_container,
         )
 
 import logging
@@ -336,8 +335,8 @@ class DGDiscretization:
 
 # {{{ trace pair
 
-@dataclass(frozen=True)
-class TracePair(DataclassArrayContainerWithArithmetic):
+@dataclass_array_container
+class TracePair(ArrayContainerWithArithmetic):
     where: str
     interior: ArrayContainer
     exterior: ArrayContainer
@@ -445,8 +444,8 @@ def bump(actx, discr, t=0):
             / source_width**2))
 
 
-@dataclass(frozen=True)
-class WaveState(DataclassArrayContainerWithArithmetic):
+@dataclass_array_container
+class WaveState(ArrayContainerWithArithmetic):
     u: DOFArray
     v: NumpyObjectArray
 

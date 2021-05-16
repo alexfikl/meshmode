@@ -31,7 +31,7 @@ import numpy as np
 import loopy as lp
 from loopy.version import MOST_RECENT_LANGUAGE_VERSION
 
-from pytools import memoize_method, memoize
+from pytools import memoize_method
 from pytools.tag import Tag
 
 
@@ -47,9 +47,9 @@ __doc__ = """
 .. autofunction:: get_container_context
 .. autofunction:: get_container_context_recursively
 
+.. autoclass:: NumpyObjectArray
 .. autoclass:: ArrayContainerWithArithmetic
-.. autoclass:: DataclassArrayContainer
-.. autoclass:: DataclassArrayContainerWithArithmetic
+.. autofunction:: dataclass_array_container
 .. autofunction:: map_array_container
 .. autofunction:: multimap_array_container
 .. autofunction:: rec_map_array_container
@@ -437,77 +437,73 @@ def _get_array_container_ac_arith(ary: ArrayContainerWithArithmetic):
 
 # {{{ dataclass containers
 
-# FIXME: Document what this is good for
+# TODO Will this interfere with type-checking, should we want it later?
+# We could always change the definition based on typing.TYPE_CHECKING...
 class NumpyObjectArray(np.ndarray):
-    pass
-
-
-class DataclassArrayContainer(ArrayContainer):
-    """An :class:`ArrayContainer` that implements serialization and
-    deserialization of :func:`~dataclasses.dataclass` fields.
+    """Used as an attribute type with :func:`dataclass_array_container` to
+    document that the attribute will be an object array.
+    :func:`dataclass_array_container` will treat this attribute as an
+    array container.
     """
 
 
-class DataclassArrayContainerWithArithmetic(
-        ArrayContainerWithArithmetic,
-        DataclassArrayContainer):
-    """An :class:`DataclassArrayContainer` where each field is assumed to
-    support arithmetic, e.g. through :class:`ArrayContainerWithArithmetic`.
+_ARRAY_CONTAINER_LIKE = (ArrayContainer, NumpyObjectArray)
+
+
+def dataclass_array_container(cls):
+    """A class decorator that makes the class to which it is applied a
+    ``frozen`` :func:`~dataclasses.dataclass` and registers appropriate
+    implementations of :func:`serialize_container` and :func:`deserialize_container`.
+
+    Attributes that are not array containers are allowed. In order to decide
+    whether an attribute is an array container, the declared attribute type
+    is checked for whether it is a subclass of :class:`ArrayContainer`.
+    Note that this classification does not necessarily agree with
+    :class:`is_array_container` (which is not usable here because it operates
+    on instances, not types). :mod:`numpy` object arrays are a particularly
+    important example of this. To document that an attribute *is* a
+    :mod:`numpy` object array, use :class:`NumpyObjectArray` in the
+    attribute type annotation.
     """
+    from dataclasses import dataclass
+    cls = dataclass(frozen=True)(cls)
 
+    array_fields = [f for f in fields(cls)
+            if issubclass(f.type, _ARRAY_CONTAINER_LIKE)]
+    non_array_fields = [f for f in fields(cls)
+            if not issubclass(f.type, _ARRAY_CONTAINER_LIKE)]
 
-@memoize(key=lambda ary: (type(ary), _serialize_dataclass_container))
-def _generate_dataclass_serialization_func(ary):
+    if not array_fields:
+        raise ValueError(f"'{cls}' must have fields with array container type "
+                "in order to use the dataclass_array_container decorator")
+
+    ser_expr = ", ".join(f"({repr(f.name)}, ary.{f.name})" for f in array_fields)
+    template_kwargs = "".join(
+            f"{f.name}=template.{f.name}, " for f in non_array_fields)
+
     from pytools.codegen import remove_common_indentation
-    code = remove_common_indentation("""
-    def _generated_serialize_dataclass(_ary):
-        return [{}]
-    """.format(", ".join(
-        f"('{f.name}', _ary.{f.name})" for f in fields(ary)
-        if issubclass(f.type, (ArrayContainer, NumpyObjectArray))
-        ))
-    )
+    ser_code = remove_common_indentation(f"""
+        from typing import Any, Iterable, Tuple
+        from meshmode.array_context import serialize_container, deserialize_container
 
-    exec_dict = {}
-    exec(compile(code, "<generated code>", "exec"), exec_dict)
-    exec_dict["_MODULE_SOURCE_CODE"] = code
+        @serialize_container.register(cls)
+        def serialize_{cls.__name__}(ary: cls):
+            return ({ser_expr},)
 
-    return exec_dict["_generated_serialize_dataclass"]
+        @deserialize_container.register(cls)
+        def deserialize_{cls.__name__}(
+                template: cls, iterable: Iterable[Tuple[Any, Any]]) -> cls:
+            return cls({template_kwargs}**dict(iterable))
+        """)
 
+    # FIXME: The fact that serialization goes to an iterable (and not a dict)
+    # forces repeated iteration over the iterable here (we're having to call dict()).
 
-@memoize(key=lambda ary: (type(ary), _deserialize_dataclass_container))
-def _generate_dataclass_deserialization_func(template):
-    from pytools.codegen import remove_common_indentation
-    code = remove_common_indentation("""
-    def _generated_deserialize_dataclass(_template, _iterable):
-        kwargs = dict(_iterable)
-        return type(_template)({})
-    """.format(
-        ", ".join(
-            f"{f.name}=kwargs['{f.name}']"
-            if issubclass(f.type, (ArrayContainer, NumpyObjectArray))
-            else f"{f.name}=_template.{f.name}"
-            for f in fields(template))
-        )
-    )
+    exec_dict = {"cls": cls}
+    exec(compile(ser_code, "<generated code>", "exec"), exec_dict)
+    exec_dict["_MODULE_SOURCE_CODE"] = ser_code
 
-    exec_dict = {}
-    exec(compile(code, "<generated code>", "exec"), exec_dict)
-    exec_dict["_MODULE_SOURCE_CODE"] = code
-
-    return exec_dict["_generated_deserialize_dataclass"]
-
-
-@serialize_container.register(DataclassArrayContainer)
-def _serialize_dataclass_container(ary: DataclassArrayContainer):
-    return _generate_dataclass_serialization_func(ary)(ary)
-
-
-@deserialize_container.register(DataclassArrayContainer)
-def _deserialize_dataclass_container(
-        template: DataclassArrayContainer,
-        iterable: Iterable[Tuple[Any, Any]]):
-    return _generate_dataclass_deserialization_func(template)(template, iterable)
+    return cls
 
 # }}}
 
