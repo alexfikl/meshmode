@@ -354,11 +354,58 @@ def _format_binary_op_str(op_str, arg1, arg2):
 def with_container_arithmetic(
         bcast_number=True, bcast_obj_array=None, bcast_numpy_array=False,
         arithmetic=True, bitwise=False, shift=False,
-        eq_comparison=True, rel_comparison=None):
+        eq_comparison=None, rel_comparison=None):
+    """A class decorator that implements built-in operators for array containers
+    by propagating the operations to the elements of the array.
+
+    :arg bcast_number: If *True*, numbers broadcast over the container
+        (with the container as the 'outer' structure).
+    :arg bcast_obj_array: If *True*, :mod:`numpy` object arrays broadcast over
+        the container.  (with the container as the 'inner' structure).
+    :arg bcast_numpy_array: If *True*, any :class:`numpy.ndarray` will broadcast
+        over the container.  (with the container as the 'inner' structure).
+    :arg arithmetic: Implement the conventional arithmetic operators, including
+        ``**``, :func:`divmod`, and `//`. Also includes ``+`` and ``-` as well as
+        :func:`abs`.
+    :arg bitwise: If *True*, implement bitwise and, or, not, and inversion.
+    :arg shift: If *True*, implement bit shifts.
+    :arg eq_comparison: If *True*, implement ``==`` and ``!=``.
+    :arg rel_comparison: If *True*, implement ``<``, ``<=``, ``>``, ``>=``.
+        In that case, if *eq_comparison* is unspecified, it is also set to
+        *True*.
+
+    Each operator class also includes the "reverse" operator class if applicable.
+
+    .. note::
+
+        To generate the code implementing the operators, this function relies on
+        class methods ``_deserialize_init_arrays_code`` and
+        ``_serialize_init_arrays_code``. This interface should be considered
+        undocumented and subject to change, however if you are curious, you may look
+        at its implementation in :class:`meshmode.dofarray.DOFArray`. For a simple
+        structure type, the implementation might look like this:
+
+            @classmethod
+            def _serialize_init_arrays_code(cls, instance_name):
+                return {"u": f"{instance_name}.u", "v": f"{instance_name}.v"}
+
+            @classmethod
+            def _deserialize_init_arrays_code(cls, tmpl_instance_name, args):
+                return f"u={args['u']}, v={args['v']}"
+
+    :func:`dataclass_array_container` automatically generates an appropriate
+    implementation of these methods, so :func:`with_container_arithmetic`
+    should nest "outside" :func:dataclass_array_container`.
+    """
+
     if bcast_obj_array is None:
         raise TypeError("bcast_obj_array must be specified")
     if rel_comparison is None:
         raise TypeError("rel_comparison must be specified")
+    if rel_comparison and eq_comparison is None:
+        eq_comparison = True
+    if eq_comparison is None:
+        raise TypeError("eq_comparison must be specified")
     if not bcast_obj_array and bcast_numpy_array:
         raise TypeError("bcast_obj_array must be set if bcast_numpy_array is")
 

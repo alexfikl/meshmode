@@ -336,7 +336,8 @@ class DGDiscretization:
 
 # {{{ trace pair
 
-@with_container_arithmetic(bcast_obj_array=False, rel_comparison=False)
+@with_container_arithmetic(
+        bcast_obj_array=False, eq_comparison=False, rel_comparison=False)
 @dataclass_array_container
 @dataclass(frozen=True)
 class TracePair:
