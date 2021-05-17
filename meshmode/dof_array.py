@@ -34,8 +34,9 @@ from pytools import single_valued, memoize_in
 
 from meshmode.array_context import (
         ArrayContext, make_loopy_program,
-        ArrayContainer, ArrayContainerWithArithmetic,
-        serialize_container, deserialize_container)
+        ArrayContainer, with_container_arithmetic,
+        serialize_container, deserialize_container,
+        has_array_context_attribute)
 from meshmode.array_context import (
         thaw as _thaw, thaw_impl, freeze as _freeze,
         rec_map_array_container, rec_multimap_array_container,
@@ -58,7 +59,9 @@ __doc__ = """
 
 # {{{ DOFArray
 
-class DOFArray(ArrayContainerWithArithmetic):
+@with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
+@has_array_context_attribute
+class DOFArray(ArrayContainer):
     r"""This array type holds degree-of-freedom arrays for use with
     :class:`~meshmode.discretization.Discretization`,
     with one entry in the :class:`DOFArray` for each
@@ -283,6 +286,17 @@ class DOFArray(ArrayContainerWithArithmetic):
         self._data = tuple([actx.from_numpy(ary_i) for ary_i in state])
 
     # }}}
+
+    @classmethod
+    def _serialize_init_arrays_code(cls, instance_name):
+        return {"_":
+                (f"{instance_name}_i", f"{instance_name}")}
+
+    @classmethod
+    def _deserialize_init_arrays_code(cls, template_instance_name, args):
+        (_, arg), = args.items()
+        # Why tuple([...])? https://stackoverflow.com/a/48592299
+        return (f"{template_instance_name}.array_context, tuple([{arg}])")
 
 # }}}
 

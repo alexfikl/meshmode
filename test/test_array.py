@@ -30,7 +30,8 @@ from meshmode.array_context import (  # noqa
         as pytest_generate_tests)
 from meshmode.array_context import (
         dataclass_array_container,
-        ArrayContainerWithArithmetic)
+        has_array_context_attribute,
+        with_container_arithmetic)
 
 from meshmode.discretization import Discretization
 from meshmode.discretization.poly_element import PolynomialWarpAndBlendGroupFactory
@@ -309,9 +310,11 @@ def test_array_context_einsum_array_tripleprod(actx_factory, spec):
 
 # {{{ test array container
 
+@with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
 @dataclass_array_container
+@has_array_context_attribute
 @dataclass(frozen=True)
-class MyContainer(ArrayContainerWithArithmetic):
+class MyContainer:
     name: str
     mass: DOFArray
     momentum: np.ndarray

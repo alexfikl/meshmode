@@ -37,7 +37,7 @@ from meshmode.array_context import (
         PyOpenCLArrayContext, make_loopy_program,
         ArrayContainer,
         map_array_container,
-        ArrayContainerWithArithmetic,
+        with_container_arithmetic,
         dataclass_array_container,
         )
 
@@ -336,9 +336,10 @@ class DGDiscretization:
 
 # {{{ trace pair
 
+@with_container_arithmetic(bcast_obj_array=False, rel_comparison=False)
 @dataclass_array_container
 @dataclass(frozen=True)
-class TracePair(ArrayContainerWithArithmetic):
+class TracePair:
     where: str
     interior: ArrayContainer
     exterior: ArrayContainer
@@ -446,9 +447,10 @@ def bump(actx, discr, t=0):
             / source_width**2))
 
 
+@with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
 @dataclass_array_container
 @dataclass(frozen=True)
-class WaveState(ArrayContainerWithArithmetic):
+class WaveState:
     u: DOFArray
     v: np.ndarray  # [object]
 
