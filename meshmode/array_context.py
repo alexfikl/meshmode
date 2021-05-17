@@ -487,11 +487,11 @@ def dataclass_array_container(cls):
         from meshmode.array_context import serialize_container, deserialize_container
 
         @serialize_container.register(cls)
-        def serialize_{cls.__name__}(ary: cls):
+        def serialize_{cls.__name__.lower()}(ary: cls):
             return ({ser_expr},)
 
         @deserialize_container.register(cls)
-        def deserialize_{cls.__name__}(
+        def deserialize_{cls.__name__.lower()}(
                 template: cls, iterable: Iterable[Tuple[Any, Any]]) -> cls:
             return cls({template_kwargs}**dict(iterable))
         """)
