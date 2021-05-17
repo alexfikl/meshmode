@@ -382,7 +382,7 @@ def with_container_arithmetic(
         class methods ``_deserialize_init_arrays_code`` and
         ``_serialize_init_arrays_code``. This interface should be considered
         undocumented and subject to change, however if you are curious, you may look
-        at its implementation in :class:`meshmode.dofarray.DOFArray`. For a simple
+        at its implementation in :class:`meshmode.dof_array.DOFArray`. For a simple
         structure type, the implementation might look like this:
 
             @classmethod
