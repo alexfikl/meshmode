@@ -48,7 +48,6 @@ __doc__ = """
 .. autofunction:: deserialize_container
 .. autofunction:: get_container_context
 .. autofunction:: get_container_context_recursively
-.. autofunction:: has_array_context_attribute
 
 .. autoclass:: with_container_arithmetic
 .. autofunction:: dataclass_array_container
@@ -206,20 +205,7 @@ def get_container_context(ary: ArrayContainer) -> Optional["ArrayContext"]:
     of the container. For the recursive version, see
     :func:`get_container_context_recursively`.
     """
-    return None
-
-
-def _get_container_context_via_attr(ary):
-    return ary.array_context
-
-
-def has_array_context_attribute(cls):
-    r"""A class decorator for :class:`ArrayContainer`\ s that registers an
-    implementation of :class:`get_container_context` that uses an
-    ``array_context`` attribute that must be present.
-    """
-    get_container_context.register(cls)(_get_container_context_via_attr)
-    return cls
+    return getattr(ary, "array_context", None)
 
 # }}}
 

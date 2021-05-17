@@ -30,7 +30,6 @@ from meshmode.array_context import (  # noqa
         as pytest_generate_tests)
 from meshmode.array_context import (
         dataclass_array_container,
-        has_array_context_attribute,
         with_container_arithmetic)
 
 from meshmode.discretization import Discretization
@@ -312,7 +311,6 @@ def test_array_context_einsum_array_tripleprod(actx_factory, spec):
 
 @with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
 @dataclass_array_container
-@has_array_context_attribute
 @dataclass(frozen=True)
 class MyContainer:
     name: str

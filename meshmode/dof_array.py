@@ -35,8 +35,7 @@ from pytools import single_valued, memoize_in
 from meshmode.array_context import (
         ArrayContext, make_loopy_program,
         ArrayContainer, with_container_arithmetic,
-        serialize_container, deserialize_container,
-        has_array_context_attribute)
+        serialize_container, deserialize_container)
 from meshmode.array_context import (
         thaw as _thaw, thaw_impl, freeze as _freeze,
         rec_map_array_container, rec_multimap_array_container,
@@ -63,7 +62,6 @@ __doc__ = """
         bcast_obj_array=True,
         bcast_numpy_array=True,
         rel_comparison=True)
-@has_array_context_attribute
 class DOFArray(ArrayContainer):
     r"""This array type holds degree-of-freedom arrays for use with
     :class:`~meshmode.discretization.Discretization`,
