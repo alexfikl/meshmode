@@ -421,9 +421,6 @@ def wave_operator(actx, discr, c, q):
 
 def rk4_step(y, t, h, f):
     k1 = f(t, y)
-    # FIXME: Test that these error if trying to add WaveState and 3-obj-array
-    #zz = y+k1
-    #zz = k1+y
     k2 = f(t+h/2, y + h/2*k1)
     k3 = f(t+h/2, y + h/2*k2)
     k4 = f(t+h, y + h*k3)

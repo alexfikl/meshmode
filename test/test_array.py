@@ -309,7 +309,7 @@ def test_array_context_einsum_array_tripleprod(actx_factory, spec):
 
 # {{{ test array container
 
-@with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
+@with_container_arithmetic(bcast_obj_array=False, rel_comparison=True)
 @dataclass_array_container
 @dataclass(frozen=True)
 class MyContainer:
@@ -408,6 +408,9 @@ def test_container_arithmetic(actx_factory):
         rec_multimap_array_container(
                 partial(_check_allclose, lambda x: actx.np.sin(x)),
                 ary, actx.np.sin(ary))
+
+    with pytest.raises(TypeError):
+        ary_of_dofs + dc_of_dofs
 
     # }}}
 
