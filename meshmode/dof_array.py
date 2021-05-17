@@ -104,20 +104,8 @@ class DOFArray(ArrayContainer):
     .. attribute:: real
     .. attribute:: imag
 
-    Inherits from :class:`~meshmode.array_context.ArrayContainerWithArithmetic`.
-
-    Basic in-place operations are also supported. Note that not all array types
-    provided by :class:`meshmode.array_context.ArrayContext` implementations
-    support in-place operations. Those based on lazy evaluation are a salient
-    example.
-
-    .. automethod:: __iadd__
-    .. automethod:: __isub__
-    .. automethod:: __imul__
-    .. automethod:: __itruediv__
-    .. automethod:: __iand__
-    .. automethod:: __ixor__
-    .. automethod:: __ior__
+    Implements the usual set of arithmetic operations, including broadcasting
+    of numbers and over numpy object arrays.
 
     .. note::
 
@@ -226,6 +214,10 @@ class DOFArray(ArrayContainer):
 
     def _ibop(self, f, arg):
         """Generic in-place binary operator without any broadcast support."""
+        from warnings import warn
+        warn("In-place operations on DOFArrays are deprecated. "
+                "They will be removed in 2022.", DeprecationWarning, stacklevel=2)
+
         if isinstance(arg, DOFArray):
             if len(self) != len(arg):
                 raise ValueError("'DOFArray' objects in binary operator must "
