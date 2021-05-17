@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+from dataclasses import dataclass
 import numpy as np
 import numpy.linalg as la  # noqa
 
@@ -336,6 +337,7 @@ class DGDiscretization:
 # {{{ trace pair
 
 @dataclass_array_container
+@dataclass(frozen=True)
 class TracePair(ArrayContainerWithArithmetic):
     where: str
     interior: ArrayContainer
@@ -445,6 +447,7 @@ def bump(actx, discr, t=0):
 
 
 @dataclass_array_container
+@dataclass(frozen=True)
 class WaveState(ArrayContainerWithArithmetic):
     u: DOFArray
     v: np.ndarray  # [object]

@@ -457,17 +457,15 @@ def _get_array_container_ac_arith(ary: ArrayContainerWithArithmetic):
 
 def dataclass_array_container(cls):
     """A class decorator that makes the class to which it is applied a
-    ``frozen`` :func:`~dataclasses.dataclass` and registers appropriate
-    implementations of :func:`serialize_container` and :func:`deserialize_container`.
+    :class:`ArrayContainer` by registering appropriate implementations of
+    :func:`serialize_container` and :func:`deserialize_container`.
+    *cls* must be a :class:`~dataclasses.dataclass`.
 
     Attributes that are not array containers are allowed. In order to decide
     whether an attribute is an array container, the declared attribute type
     is checked for whether it is a subclass of :class:`ArrayContainer`,
     using :func:`is_array_container_type`.
     """
-    from dataclasses import dataclass
-    cls = dataclass(frozen=True)(cls)
-
     array_fields = [f for f in fields(cls)
             if is_array_container_type(f.type)]
     non_array_fields = [f for f in fields(cls)

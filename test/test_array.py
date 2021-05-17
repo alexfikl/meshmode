@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 """
 
+from dataclasses import dataclass
 import pytest
 import numpy as np
 
@@ -309,6 +310,7 @@ def test_array_context_einsum_array_tripleprod(actx_factory, spec):
 # {{{ test array container
 
 @dataclass_array_container
+@dataclass(frozen=True)
 class MyContainer(ArrayContainerWithArithmetic):
     name: str
     mass: DOFArray
