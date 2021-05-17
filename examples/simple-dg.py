@@ -34,7 +34,7 @@ from meshmode.dof_array import DOFArray
 from meshmode.array_context import (
         freeze, thaw,
         PyOpenCLArrayContext, make_loopy_program,
-        ArrayContainer, NumpyObjectArray,
+        ArrayContainer,
         map_array_container,
         ArrayContainerWithArithmetic,
         dataclass_array_container,
@@ -447,7 +447,7 @@ def bump(actx, discr, t=0):
 @dataclass_array_container
 class WaveState(ArrayContainerWithArithmetic):
     u: DOFArray
-    v: NumpyObjectArray
+    v: np.ndarray  # [object]
 
     def __post_init__(self):
         assert isinstance(self.v, np.ndarray) and self.v.dtype.char == "O"
