@@ -366,13 +366,25 @@ def _format_binary_op_str(op_str, arg1, arg2):
 
 
 def with_container_arithmetic(
-        bcast_number=True, bcast_obj_array=None,
+        bcast_number=True, bcast_obj_array=None, bcast_numpy_array=False,
         arithmetic=True, bitwise=False, shift=False,
         eq_comparison=True, rel_comparison=None):
     if bcast_obj_array is None:
         raise TypeError("bcast_obj_array must be specified")
     if rel_comparison is None:
         raise TypeError("rel_comparison must be specified")
+    if not bcast_obj_array and bcast_numpy_array:
+        raise TypeError("bcast_obj_array must be set if bcast_numpy_array is")
+
+    if bcast_numpy_array:
+        def numpy_pred(name):
+            return f"isinstance({name}, np.ndarray)"
+    elif bcast_obj_array:
+        def numpy_pred(name):
+            return f"isinstance({name}, np.ndarray) and {name}.dtype.char == 'O'"
+    else:
+        def numpy_pred(name):
+            return "False"  # optimized away
 
     desired_op_classes = set()
     if arithmetic:
@@ -393,7 +405,6 @@ def with_container_arithmetic(
             from numbers import Number
             import numpy as np
             from meshmode.array_context import ArrayContainer
-            from pytools.obj_array import obj_array_vectorize
             import operator as op
             """)
         gen("")
@@ -404,13 +415,13 @@ def with_container_arithmetic(
 
         # {{{ unary operators
 
-        for dunder_name, base_op_str, op_cls in _UNARY_OP_AND_DUNDER:
+        for dunder_name, op_str, op_cls in _UNARY_OP_AND_DUNDER:
             if op_cls not in desired_op_classes:
                 continue
 
             fname = f"{cls.__name__.lower()}_{dunder_name}"
             init_args = cls._deserialize_init_arrays_code("arg1", {
-                    key_arg1: _format_unary_op_str(base_op_str, expr_arg1)
+                    key_arg1: _format_unary_op_str(op_str, expr_arg1)
                     for key_arg1, expr_arg1 in
                     cls._serialize_init_arrays_code("arg1").items()
                     })
@@ -423,7 +434,7 @@ def with_container_arithmetic(
 
         # }}}
 
-        for dunder_name, base_op_str, reversible, op_cls in _BINARY_OP_AND_DUNDER:
+        for dunder_name, op_str, reversible, op_cls in _BINARY_OP_AND_DUNDER:
             if op_cls not in desired_op_classes:
                 continue
 
@@ -432,13 +443,13 @@ def with_container_arithmetic(
             fname = f"{cls.__name__.lower()}_{dunder_name}"
             zip_init_args = cls._deserialize_init_arrays_code("arg1", {
                     same_key(key_arg1, key_arg2):
-                    _format_binary_op_str(base_op_str, expr_arg1, expr_arg2)
+                    _format_binary_op_str(op_str, expr_arg1, expr_arg2)
                     for (key_arg1, expr_arg1), (key_arg2, expr_arg2) in zip(
                         cls._serialize_init_arrays_code("arg1").items(),
                         cls._serialize_init_arrays_code("arg2").items())
                     })
             bcast_init_args = cls._deserialize_init_arrays_code("arg1", {
-                    key_arg1: _format_binary_op_str(base_op_str, expr_arg1, "arg2")
+                    key_arg1: _format_binary_op_str(op_str, expr_arg1, "arg2")
                     for key_arg1, expr_arg1 in
                     cls._serialize_init_arrays_code("arg1").items()
                     })
@@ -450,12 +461,11 @@ def with_container_arithmetic(
                     if {bcast_number}:  # optimized away
                         if isinstance(arg2, Number):
                             return cls({bcast_init_args})
-                    if {bcast_obj_array}:  # optimized away
-                        if isinstance(arg2, np.ndarray) and arg2.dtype.char == "O":
-                            return obj_array_vectorize(
-                                lambda arg2_subary:
-                                    {base_op_str.format("arg1", "arg2_subary")},
-                                arg2)
+                    if {numpy_pred("arg2")}:
+                        result = np.empty_like(arg2, dtype=object)
+                        for i in np.ndindex(arg2.shape):
+                            result[i] = {op_str.format("arg1", "arg2[i]")}
+                        return result
                     return NotImplemented
                 cls.__{dunder_name}__ = {fname}""")
             gen("")
@@ -468,7 +478,7 @@ def with_container_arithmetic(
                 fname = f"{cls.__name__.lower()}_r{dunder_name}"
                 bcast_init_args = cls._deserialize_init_arrays_code("arg2", {
                         key_arg2: _format_binary_op_str(
-                            base_op_str, "arg1", expr_arg2)
+                            op_str, "arg1", expr_arg2)
                         for key_arg2, expr_arg2 in
                         cls._serialize_init_arrays_code("arg2").items()
                         })
@@ -479,13 +489,11 @@ def with_container_arithmetic(
                         if {bcast_number}:  # optimized away
                             if isinstance(arg1, Number):
                                 return cls({bcast_init_args})
-                        if {bcast_obj_array}:  # optimized away
-                            if (isinstance(arg1, np.ndarray)
-                                    and arg1.dtype.char == "O"):
-                                return obj_array_vectorize(
-                                    lambda arg1_subary:
-                                        {base_op_str.format("arg1_subary", "arg2")},
-                                    arg1)
+                        if {numpy_pred("arg1")}:
+                            result = np.empty_like(arg1, dtype=object)
+                            for i in np.ndindex(arg1.shape):
+                                result[i] = {op_str.format("arg1[i]", "arg2")}
+                            return result
                         return NotImplemented
 
                     cls.__r{dunder_name}__ = {fname}""")

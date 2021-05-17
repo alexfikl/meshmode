@@ -59,7 +59,10 @@ __doc__ = """
 
 # {{{ DOFArray
 
-@with_container_arithmetic(bcast_obj_array=True, rel_comparison=True)
+@with_container_arithmetic(
+        bcast_obj_array=True,
+        bcast_numpy_array=True,
+        rel_comparison=True)
 @has_array_context_attribute
 class DOFArray(ArrayContainer):
     r"""This array type holds degree-of-freedom arrays for use with
