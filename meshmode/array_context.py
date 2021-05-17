@@ -478,8 +478,8 @@ def dataclass_array_container(cls):
                 "in order to use the dataclass_array_container decorator")
 
     ser_expr = ", ".join(f"({repr(f.name)}, ary.{f.name})" for f in array_fields)
-    template_kwargs = "".join(
-            f"{f.name}=template.{f.name}, " for f in non_array_fields)
+    template_kwargs = ", ".join(
+            f"{f.name}=template.{f.name}" for f in non_array_fields)
 
     from pytools.codegen import remove_common_indentation
     ser_code = remove_common_indentation(f"""
@@ -493,7 +493,7 @@ def dataclass_array_container(cls):
         @deserialize_container.register(cls)
         def deserialize_{cls.__name__.lower()}(
                 template: cls, iterable: Iterable[Tuple[Any, Any]]) -> cls:
-            return cls({template_kwargs}**dict(iterable))
+            return cls(**dict(iterable), {template_kwargs})
         """)
 
     # FIXME: The fact that serialization goes to an iterable (and not a dict)
