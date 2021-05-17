@@ -496,9 +496,6 @@ def dataclass_array_container(cls):
             return cls(**dict(iterable), {template_kwargs})
         """)
 
-    # FIXME: The fact that serialization goes to an iterable (and not a dict)
-    # forces repeated iteration over the iterable here (we're having to call dict()).
-
     exec_dict = {"cls": cls}
     exec(compile(ser_code, "<generated code>", "exec"), exec_dict)
     exec_dict["_MODULE_SOURCE_CODE"] = ser_code
