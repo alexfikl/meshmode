@@ -48,7 +48,6 @@ __doc__ = """
 .. autofunction:: get_container_context
 .. autofunction:: get_container_context_recursively
 
-.. autoclass:: NumpyObjectArray
 .. autoclass:: ArrayContainerWithArithmetic
 .. autofunction:: dataclass_array_container
 .. autofunction:: map_array_container
@@ -459,7 +458,7 @@ def dataclass_array_container(cls):
     """A class decorator that makes the class to which it is applied a
     :class:`ArrayContainer` by registering appropriate implementations of
     :func:`serialize_container` and :func:`deserialize_container`.
-    *cls* must be a :class:`~dataclasses.dataclass`.
+    *cls* must be a :func:`~dataclasses.dataclass`.
 
     Attributes that are not array containers are allowed. In order to decide
     whether an attribute is an array container, the declared attribute type
