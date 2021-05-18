@@ -438,7 +438,6 @@ def with_container_arithmetic(
             from numbers import Number
             import numpy as np
             from meshmode.array_context import ArrayContainer
-            import operator as op
             """)
         gen("")
 
