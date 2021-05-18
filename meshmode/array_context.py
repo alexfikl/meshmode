@@ -356,7 +356,7 @@ def with_container_arithmetic(
         arithmetic=True, bitwise=False, shift=False,
         eq_comparison=None, rel_comparison=None):
     """A class decorator that implements built-in operators for array containers
-    by propagating the operations to the elements of the array.
+    by propagating the operations to the elements of the container.
 
     :arg bcast_number: If *True*, numbers broadcast over the container
         (with the container as the 'outer' structure).
