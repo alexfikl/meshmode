@@ -41,6 +41,17 @@ from pytools.obj_array import make_obj_array
 import logging
 logger = logging.getLogger(__name__)
 
+# {{{ work around possible lack of https://github.com/inducer/pyopencl/pull/472
+
+import pyopencl.array
+if not hasattr(pyopencl.array.Array, "__pos__"):
+    def _cl_array_pos(self):
+        return self
+
+    pyopencl.array.Array.__pos__ = _cl_array_pos
+
+# }}}
+
 
 def test_array_context_np_workalike(actx_factory):
     actx = actx_factory()
