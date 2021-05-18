@@ -365,7 +365,7 @@ def with_container_arithmetic(
     :arg bcast_numpy_array: If *True*, any :class:`numpy.ndarray` will broadcast
         over the container.  (with the container as the 'inner' structure).
     :arg arithmetic: Implement the conventional arithmetic operators, including
-        ``**``, :func:`divmod`, and `//`. Also includes ``+`` and ``-` as well as
+        ``**``, :func:`divmod`, and ``//``. Also includes ``+`` and ``-`` as well as
         :func:`abs`.
     :arg bitwise: If *True*, implement bitwise and, or, not, and inversion.
     :arg shift: If *True*, implement bit shifts.
@@ -383,7 +383,7 @@ def with_container_arithmetic(
         ``_serialize_init_arrays_code``. This interface should be considered
         undocumented and subject to change, however if you are curious, you may look
         at its implementation in :class:`meshmode.dof_array.DOFArray`. For a simple
-        structure type, the implementation might look like this:
+        structure type, the implementation might look like this::
 
             @classmethod
             def _serialize_init_arrays_code(cls, instance_name):
