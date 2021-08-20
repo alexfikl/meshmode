@@ -41,7 +41,8 @@ from meshmode.discretization.poly_element import (
         PolynomialWarpAndBlend3DRestrictingGroupFactory,
         PolynomialRecursiveNodesGroupFactory,
         PolynomialEquidistantSimplexGroupFactory,
-        LegendreGaussLobattoTensorProductGroupFactory
+        LegendreGaussLobattoTensorProductGroupFactory,
+        EquidistantTensorProductGroupFactory,
         )
 from meshmode.mesh import Mesh, BTAG_ALL
 from meshmode.dof_array import flat_norm
@@ -900,6 +901,8 @@ def test_mesh_multiple_groups(actx_factory, ambient_dim, visualize=False):
 # }}}
 
 
+# {{{ test_mesh_with_interior_unit_nodes
+
 @pytest.mark.parametrize("ambient_dim", [2, 3])
 def test_mesh_with_interior_unit_nodes(actx_factory, ambient_dim):
     actx = actx_factory()
@@ -948,6 +951,68 @@ def test_mesh_with_interior_unit_nodes(actx_factory, ambient_dim):
             group_factory=QuadratureSimplexGroupFactory(order),
             boundary_tag=FACE_RESTR_ALL)
     assert conn
+
+# }}}
+
+
+# {{{ test_heterogeneous_quad_mesh
+
+@pytest.mark.parametrize("order", [
+    (6, 3), (3, 6),
+    ])
+def test_heterogeneous_quad_mesh(actx_factory, order, visualize=False):
+    actx = actx_factory()
+
+    dim = 2
+    nelements_per_axis = 5
+    mesh = mgen.generate_regular_rect_mesh(
+            a=(0,) * dim, b=(1,) * dim,
+            nelements_per_axis=(nelements_per_axis,) * dim,
+            order=order, group_cls=TensorProductElementGroup)
+
+    for mgrp in mesh.groups:
+        assert mgrp.order == order
+        assert mgrp._modepy_space.order == order
+        assert mgrp.unit_nodes.shape == (2, np.prod([n + 1 for n in order]))
+
+    from meshmode.discretization import Discretization
+    discr = Discretization(actx, mesh,
+            EquidistantTensorProductGroupFactory(order))
+
+    for grp in discr.groups:
+        assert grp.order == order
+        assert grp.space.order == order
+        assert grp.unit_nodes.shape == (2, np.prod([n + 1 for n in order]))
+
+    from arraycontext import thaw
+    nodes = thaw(discr.nodes(), actx)
+
+    from meshmode.discretization import num_reference_derivative
+    dx = num_reference_derivative(discr, (0,), actx.np.sin(nodes[0]))
+
+    f = actx.np.ones_like(dx)
+    w = thaw(discr.quad_weights(), actx)
+
+    area_element = (1.0 / nelements_per_axis / 2)**2
+    area = actx.np.sum(f * w) * area_element
+
+    assert la.norm(actx.to_numpy(area) - 1) < 1.0e-14
+
+    if not visualize:
+        return
+
+    from meshmode.discretization.visualization import make_visualizer
+    vis = make_visualizer(actx, discr, max(order))
+    vis.write_vtk_file("test_heterogeneous_quad_mesh.vtu", [
+        ("dx", dx)
+        ], overwrite=True)
+
+    vis = make_visualizer(actx, discr, max(order), force_equidistant=True)
+    vis.write_vtk_file("test_heterogeneous_quad_mesh_lagrange.vtu", [
+        ("dx", dx)
+        ], use_high_order=True, overwrite=True)
+
+# }}}
 
 
 if __name__ == "__main__":

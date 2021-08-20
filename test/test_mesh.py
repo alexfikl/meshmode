@@ -517,6 +517,7 @@ def test_open_curved_mesh(curve_name):
 
 
 # {{{ test_is_affine_group_check
+
 def _generate_cross_warped_rect_mesh(dim, order, nelements_side):
     mesh = mgen.generate_regular_rect_mesh(
             a=(0,)*dim, b=(1,)*dim,

@@ -26,6 +26,7 @@ THE SOFTWARE.
 from abc import abstractproperty
 from typing import Tuple, ClassVar
 from warnings import warn
+from numbers import Number
 
 import numpy as np
 from pytools import memoize_method, memoize_on_first_arg
@@ -515,14 +516,19 @@ class HypercubeElementGroupBase(NodalElementGroupBase):
         return from_mesh_interp_matrix(self)
 
 
-class TensorProductElementGroupBase(PolynomialElementGroupBase,
-        HypercubeElementGroupBase):
+class TensorProductElementGroupBase(
+        PolynomialElementGroupBase, HypercubeElementGroupBase):
     def __init__(self, mesh_el_group, order, index, *, basis, unit_nodes):
         """
         :arg basis: a :class:`modepy.TensorProductBasis`.
         :arg unit_nodes: unit nodes for the tensor product, obtained by
             using :func:`modepy.tensor_product_nodes`, for example.
         """
+        if isinstance(order, Number):
+            order = (order,) * mesh_el_group.dim
+        else:
+            assert len(order) == mesh_el_group.dim
+
         super().__init__(mesh_el_group, order, index)
 
         if basis._dim != mesh_el_group.dim:
@@ -544,9 +550,9 @@ class TensorProductElementGroupBase(PolynomialElementGroupBase,
         basis_fcts = self._basis.functions
         nodes = self._nodes
         mass_matrix = mp.mass_matrix(basis_fcts, nodes)
-        weights = np.dot(mass_matrix,
-                         np.ones(len(basis_fcts)))
-        return mp.Quadrature(nodes, weights, exact_to=self.order)
+
+        weights = np.dot(mass_matrix, np.ones(len(basis_fcts)))
+        return mp.Quadrature(nodes, weights, exact_to=min(self.order))
 
     def discretization_key(self):
         # FIXME?
@@ -558,6 +564,11 @@ class TensorProductElementGroupBase(PolynomialElementGroupBase,
 
 class LegendreTensorProductElementGroup(TensorProductElementGroupBase):
     def __init__(self, mesh_el_group, order, index, *, unit_nodes):
+        if isinstance(order, Number):
+            order = (order,) * mesh_el_group.dim
+        else:
+            assert len(order) == mesh_el_group.dim
+
         basis = mp.orthonormal_basis_for_space(
                 mp.QN(mesh_el_group.dim, order),
                 mp.Hypercube(mesh_el_group.dim))
@@ -576,13 +587,18 @@ class GaussLegendreTensorProductElementGroup(LegendreTensorProductElementGroup):
     """
 
     def __init__(self, mesh_el_group, order, index):
-        self._quadrature_rule = mp.LegendreGaussTensorProductQuadrature(
-                order, mesh_el_group.dim)
+        if isinstance(order, Number):
+            order = (order,) * mesh_el_group.dim
+        else:
+            assert len(order) == mesh_el_group.dim
+
+        self._quadrature_rule = mp.TensorProductQuadrature([
+            mp.LegendreGaussQuadrature(n) for n in order
+            ])
 
         super().__init__(mesh_el_group, order, index,
                 unit_nodes=self._quadrature_rule.nodes)
 
-    @memoize_method
     def quadrature_rule(self):
         return self._quadrature_rule
 
@@ -601,9 +617,15 @@ class LegendreGaussLobattoTensorProductElementGroup(
     """
 
     def __init__(self, mesh_el_group, order, index):
+        if isinstance(order, Number):
+            order = (order,) * mesh_el_group.dim
+        else:
+            assert len(order) == mesh_el_group.dim
+
         from modepy.quadrature.jacobi_gauss import legendre_gauss_lobatto_nodes
-        unit_nodes_1d = legendre_gauss_lobatto_nodes(order)
-        unit_nodes = mp.tensor_product_nodes([unit_nodes_1d] * mesh_el_group.dim)
+        unit_nodes = mp.tensor_product_nodes([
+            legendre_gauss_lobatto_nodes(n) for n in order
+            ])
 
         super().__init__(mesh_el_group, order, index, unit_nodes=unit_nodes)
 
@@ -621,9 +643,15 @@ class EquidistantTensorProductElementGroup(LegendreTensorProductElementGroup):
     """
 
     def __init__(self, mesh_el_group, order, index):
+        if isinstance(order, Number):
+            order = (order,) * mesh_el_group.dim
+        else:
+            assert len(order) == mesh_el_group.dim
+
         from modepy.nodes import equidistant_nodes
-        unit_nodes_1d = equidistant_nodes(1, order)[0]
-        unit_nodes = mp.tensor_product_nodes([unit_nodes_1d] * mesh_el_group.dim)
+        unit_nodes = mp.tensor_product_nodes([
+            equidistant_nodes(1, n)[0] for n in order
+            ])
 
         super().__init__(mesh_el_group, order, index, unit_nodes=unit_nodes)
 

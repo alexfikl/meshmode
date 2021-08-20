@@ -410,8 +410,9 @@ class VTKLagrangeConnectivity(VTKConnectivity):
                     vtk_lagrange_quad_node_tuples,
                     vtk_lagrange_quad_node_tuples_to_permutation)
 
+            from pytools import single_valued
             node_tuples = vtk_lagrange_quad_node_tuples(
-                    grp.dim, grp.order, vtk_version=vtk_version)
+                    grp.dim, single_valued(grp.order), vtk_version=vtk_version)
             el_connectivity = np.array(
                     vtk_lagrange_quad_node_tuples_to_permutation(node_tuples),
                     dtype=np.intp).reshape((1, 1, -1))
